@@ -1,0 +1,14 @@
+.opencode/
+.ruff_cache/
+.vscode/
+.opencode.json
+AGENTS.md
+OPENCODE.md
+specs/
+runs/
+classes/
+docs/
+notebooks/
+presentation/
+profiling/
+source/

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "ica": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ICA Models",
+      "options": {
+        "baseURL": "https://api.servicesessentials.ibm.com/v1",
+        "apiKey": "sk-dbULUE1zso8UfZ5lZMYuag"
+      },
+      "models": {
+        "gpt-5.6-luna": {
+          "name": "GPT Luna v5.6 (IBM ICA)"
+        },
+        "gpt-5.6-terra": {
+          "name": "GPT Terra v5.6 (IBM ICA)"
+        },
+        "gpt-5.6-sol": {
+          "name": "GPT Sol v5.6 (IBM ICA)"
+        }
+      }
+    }
+  },
+  "model": "ica/gpt-5.6-luna",
+  "autoupdate": true,
+  "plugin": [],
+  "instructions": [
+    "AGENTS.md",
+    "OPENCODE.md"
+  ],
+  "agent": {
+    "build": {
+      "description": "Default agent with full access for implementation tasks",
+      "mode": "primary",
+      "temperature": 0.3
+    },
+    "plan": {
+      "description": "Read-only analysis agent for planning and review without code changes",
+      "mode": "primary",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    }
+  },
+  "mcp": {
+    "ica": {
+      "type": "local",
+      "command": [
+        "node",
+        "/home/dennys/WindowsD/Projects/mcp-ica-2.0-server/dist/server.js"
+      ],
+      "environment": {
+        "ICA_API_KEY": "sk-5f95b98f489a4c4da6c5f0de7bb24d94"
+      },
+      "timeout": 360000
+    }
+  },
+  "command": {},
+  "formatter": {},
+  "permission": {
+    "*": "allow"
+  }
+}
