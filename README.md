@@ -19,7 +19,14 @@ semestre 2026/S2.
 | `content/1.AC_CUDA_C-com_exemplos_incluidos_v2.ipynb` | Fundamentos de CUDA C com exemplos |
 | `content/2.Unified Memory v2.ipynb` | Unified Memory: modelo e benchmarks |
 | `content/3.Streaming and Visual Profiling v2.ipynb` | Streams CUDA e profiling visual |
-| `content/4.Accelerating GPT-2 with GPUs_ A Deep Dive v2.ipynb` | Aceleração do GPT-2 com CUDA — análise aprofundada |
+| `content/0.Accelerating GPT-2 with GPUs_ A Deep Dive v2.ipynb` | Aceleração do GPT-2 com CUDA — análise aprofundada |
+
+### Papers de referência
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `content/paper- All Attention is You Need - 1706.03762v7.pdf` | Vaswani et al. (2017) — Attention Is All You Need |
+| `content/paper - Deepseek V3 - 2412.19437v2.pdf` | DeepSeek-V3 Technical Report (2024) |
 
 ## Como usar os notebooks
 
