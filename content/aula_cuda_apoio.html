@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CUDA em prática: kernels, Unified Memory e Streams (PPD UFSCar)</title>
+<style>
+:root{--bg:#0f1115;--panel:#181b22;--panel2:#20242d;--line:#2c313c;--tx:#e8eaf0;--sub:#9aa3b2;--acc:#76b900;--blue:#4c9aff;--warn:#ffb84d;--err:#ff6b6b;--ok:#4cd98a;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"DejaVu Sans Mono",monospace}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif}
+body.light{--bg:#f6f7f9;--panel:#fff;--panel2:#eef0f4;--line:#d6dae2;--tx:#14171c;--sub:#566070;--acc:#3f7d00;--blue:#0b5bd3;--warn:#a85d00;--err:#c0262d;--ok:#18794e}
+header{position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--panel);border-bottom:1px solid var(--line);z-index:10}
+header b{color:var(--acc)} header .sp{flex:1}
+header select,header button{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:4px 10px;font:inherit;font-size:14px;cursor:pointer}
+#bar{position:fixed;top:46px;left:0;height:3px;background:var(--acc);width:0;z-index:11;transition:width .2s}
+main{position:absolute;top:49px;bottom:44px;left:0;right:0;overflow:hidden}
+.slide{position:absolute;inset:0;padding:26px 48px;overflow:auto;display:none}
+.slide.on{display:block;animation:in .25s}
+@keyframes in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+h1{font-size:2.3rem;margin:.1em 0 .2em} h2{font-size:1.75rem;margin:0 0 .15em} h3{font-size:1.1rem;margin:.2em 0 .4em;color:var(--blue)}
+.sec{font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--acc)}
+.lead{color:var(--sub);margin:0 0 14px;max-width:90ch}
+.grid{display:grid;gap:18px} .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:980px){.g2,.g3{grid-template-columns:1fr}.slide{padding:18px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card.warn{border-left:4px solid var(--warn)} .card.err{border-left:4px solid var(--err)} .card.ok{border-left:4px solid var(--ok)}
+ul{margin:.3em 0;padding-left:1.2em} li{margin:.25em 0}
+code,pre{font-family:var(--mono)} code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:.88em}
+pre{background:#0b0d11;color:#dfe5ee;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:.4em 0;overflow:auto;font-size:14px;line-height:1.45}
+body.light pre{background:#14171c}
+.k{color:#ff7b9c}.t{color:#7fd6ff}.s{color:#a5e075}.c{color:#7d8799;font-style:italic}.n{color:#ffb86c}
+.formula{font:1.15rem var(--mono);background:var(--panel2);padding:10px 14px;border-radius:8px;border:1px dashed var(--line);margin:.5em 0;overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:15px} th,td{border:1px solid var(--line);padding:6px 10px;text-align:left} th{background:var(--panel2)}
+.tag{display:inline-block;font:600 11px var(--mono);padding:2px 8px;border-radius:99px;margin-right:6px;background:var(--panel2);border:1px solid var(--line)}
+.tag.hist{color:var(--warn)} .tag.vig{color:var(--ok)} .tag.obs{color:var(--err)} .tag.atu{color:var(--blue)}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+.ctl label{font-size:14px;color:var(--sub)} .ctl input[type=number]{width:84px;background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font:inherit}
+.btn{background:var(--acc);color:#0b0d11;border:0;border-radius:6px;padding:6px 14px;font:600 14px inherit;cursor:pointer} .btn.alt{background:var(--panel2);color:var(--tx);border:1px solid var(--line)}
+.out{font:14px var(--mono);background:var(--panel2);border-radius:8px;padding:8px 12px;min-height:2.6em;white-space:pre-wrap}
+canvas,svg{max-width:100%}
+.cells{display:flex;flex-wrap:wrap;gap:3px;margin:6px 0}
+.cell{width:26px;height:26px;border-radius:4px;background:var(--panel2);border:1px solid var(--line);font:10px/24px var(--mono);text-align:center;color:var(--sub)}
+.cell.a{background:var(--blue);color:#fff;border-color:var(--blue)} .cell.b{background:var(--acc);color:#0b0d11} .cell.x{background:var(--err);color:#fff} .cell.h{outline:2px solid var(--warn)}
+.src{font-size:13px;color:var(--sub)} .src a{color:var(--blue)}
+footer{position:fixed;bottom:0;left:0;right:0;height:44px;display:flex;align-items:center;gap:10px;padding:0 18px;background:var(--panel);border-top:1px solid var(--line);z-index:10;font-size:14px;color:var(--sub)}
+footer .sp{flex:1} footer button{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:4px 12px;cursor:pointer;font:inherit}
+#notes{position:fixed;right:14px;bottom:56px;width:min(430px,92vw);max-height:46vh;overflow:auto;background:var(--panel);border:1px solid var(--warn);border-radius:10px;padding:12px 14px;font-size:14px;display:none;z-index:20;box-shadow:0 8px 28px #0008}
+#notes.on{display:block} #notes h4{margin:0 0 6px;color:var(--warn)}
+#toc{position:fixed;top:49px;left:0;bottom:44px;width:min(360px,90vw);background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:12px;display:none;z-index:15}
+#toc.on{display:block} #toc a{display:block;padding:5px 8px;border-radius:6px;color:var(--tx);text-decoration:none;font-size:14px;cursor:pointer} #toc a:hover{background:var(--panel2)} #toc small{color:var(--sub);font:11px var(--mono)}
+@media print{header,footer,#bar,#toc,#notes{display:none!important}main{position:static}.slide{display:block!important;position:static;page-break-after:always}}
+</style>
+</head>
+<body>
+<header>
+  <b>CUDA</b><span>PPD · UFSCar · apoio de aula</span><span class="sp"></span>
+  <button id="bToc" title="Índice (T)">Índice</button>
+  <button id="bNotes" title="Notas do professor (N)">Notas</button>
+  <button id="bTheme" title="Tema (L)">Claro/Escuro</button>
+</header>
+<div id="bar"></div>
+<div id="toc"></div>
+<main id="deck"></main>
+<div id="notes"></div>
+<footer>
+  <button id="prev">◀</button><button id="next">▶</button>
+  <span id="pos"></span><span class="sp"></span>
+  <span>← → navegar · T índice · N notas · L tema · F tela cheia · P imprimir</span>
+</footer>
+
+<script>
+const S=[]; // slides
+function slide(sec,title,html,notes,init){S.push({sec,title,html,notes:notes||'',init})}
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// realce de sintaxe mínimo para C/CUDA
+function hl(src){
+  let t=esc(src);
+  const stash=[];const enc=n=>String(n).replace(/\d/g,d=>String.fromCharCode(97+ +d));const dec=s=>s.replace(/[a-j]/g,c=>c.charCodeAt(0)-97);
+  const keep=(cls,m)=>{stash.push(`<span class="${cls}">${m}</span>`);return `\u0000${enc(stash.length-1)}\u0000`};
+  t=t.replace(/(\/\/[^\n]*)/g,(m)=>keep('c',m));
+  t=t.replace(/(&quot;|")(?:(?!\1).)*\1/g,(m)=>keep('s',m));
+  t=t.replace(/\b(__global__|__device__|__host__|for|if|return|void|int|float|size_t|const|dim3|cudaError_t|cudaStream_t|struct)\b/g,'<span class="k">$1</span>');
+  t=t.replace(/\b(threadIdx|blockIdx|blockDim|gridDim|cudaMallocManaged|cudaMalloc|cudaMallocHost|cudaFree|cudaFreeHost|cudaMemcpyAsync|cudaMemcpy|cudaMemPrefetchAsync|cudaDeviceSynchronize|cudaStreamSynchronize|cudaStreamCreate|cudaStreamDestroy|cudaGetLastError|cudaGetErrorString|cudaGetDevice|cudaGetDeviceProperties|cudaDeviceGetAttribute|cudaCpuDeviceId)\b/g,'<span class="t">$1</span>');
+  t=t.replace(/\b(\d+)\b/g,'<span class="n">$1</span>');
+  return t.replace(/\u0000([a-j]+)\u0000/g,(_,i)=>stash[dec(i)]);
+}
+const code=(src)=>`<pre>${hl(src.replace(/^\n/,''))}</pre>`;
+const sh=(src)=>`<pre>${esc(src.replace(/^\n/,''))}</pre>`;
+
+/* ================== 0. ABERTURA ================== */
+slide('Abertura','CUDA em prática',`
+<div class="sec">Notebooks 1, 2 e 3</div>
+<h1>Kernels, Unified Memory e Streams</h1>
+<p class="lead">Roteiro de apoio: do primeiro kernel ao perfil visual com Nsight Systems. GPU de referência: <b>Tesla T4 (sm_75)</b> no Google Colab.</p>
+<div class="grid g3">
+ <div class="card"><h3>Bloco 1 · Notebook 1</h3><ul><li>Computação acelerada</li><li>Kernel e configuração de execução</li><li>Hierarquia de threads</li><li>Grid-stride loop</li><li>Tratamento de erros</li></ul></div>
+ <div class="card"><h3>Bloco 2 · Notebook 2</h3><ul><li><code>cudaMallocManaged</code></li><li>Page faults e migração</li><li>Nsight Systems (<code>nsys</code>)</li><li>Prefetch</li></ul></div>
+ <div class="card"><h3>Bloco 3 · Notebook 3</h3><ul><li>Stream padrão x não padrão</li><li>Pinned memory</li><li><code>cudaMemcpyAsync</code></li><li>Perfil visual e sobreposição</li></ul></div>
+</div>
+<div class="card warn" style="margin-top:16px"><b>Regra da aula:</b> toda afirmação de desempenho vem com GPU, tamanho, aquecimento e método. Os gráficos desta apresentação são <b>ilustrativos</b> quando assim rotulados.</div>`,
+`Apresente o roteiro e a regra de medição. Os números dos notebooks vêm de uma T4 no Colab; não os apresente como benchmark geral. Pergunte quem já usou GPU para algo além de jogos.`);
+
+slide('Abertura','Mapa da aula e fontes',`
+<table>
+<tr><th>Tema</th><th>Fonte principal</th><th>Idioma</th></tr>
+<tr><td>Modelo CUDA, kernels, thread hierarchy</td><td>CUDA C++ Programming Guide (seções 2.1, 2.3)</td><td>EN</td></tr>
+<tr><td>Primeiro kernel, grid-stride, prefetch</td><td>M. Harris, <i>An Even Easier Introduction to CUDA</i> (2025)</td><td>EN</td></tr>
+<tr><td>Kernel e indexação em português</td><td>Insper, <i>Introdução a GPU</i> (SuperComputação 2026/2)</td><td>PT</td></tr>
+<tr><td>Warps, blocos, <code>-arch</code></td><td>llmdeepdive, <i>O modelo de programação CUDA</i></td><td>PT</td></tr>
+<tr><td>Unified Memory</td><td>M. Harris, <i>Unified Memory for CUDA Beginners</i> (2017)</td><td>EN</td></tr>
+<tr><td>Streams e sobreposição</td><td>M. Harris, <i>How to Overlap Data Transfers in CUDA C/C++</i> (2012)</td><td>EN</td></tr>
+<tr><td>Saída do <code>nsys --stats</code></td><td>Nsight Systems User Guide; tutorial MolSSI</td><td>EN</td></tr>
+</table>
+<p class="src">Links completos e lacunas em <code>classes/apoio/hub_cuda_aula.md</code>. Sem fonte em PT aberta e verificada para unified memory, nsys, streams e erros.</p>`,
+`Diga explicitamente aos alunos quais fontes estão em inglês. Os posts de Harris de 2012 e 2017 usam GPUs antigas e nvprof; usamos o raciocínio, não os números.`);
+
+/* ================== 1. COMPUTAÇÃO ACELERADA ================== */
+slide('1 · Computação acelerada','CPU x GPU: por que acelerar',`
+<p class="lead">A CPU é otimizada para latência de poucas threads. A GPU é otimizada para vazão de milhares de threads que fazem a mesma operação em dados diferentes.</p>
+<div class="grid g2">
+<div class="card"><svg viewBox="0 0 420 230" width="100%" id="svgArch"></svg><p class="src">Esquema ilustrativo, sem escala. Não representa uma CPU ou GPU específica.</p></div>
+<div>
+ <div class="card"><h3>Quando vale a pena</h3><ul><li>Muito dado, mesma operação (data parallelism)</li><li>Operações independentes entre elementos</li><li>Intensidade aritmética suficiente para amortizar a transferência</li></ul></div>
+ <div class="card warn" style="margin-top:12px"><h3>Cuidado</h3><p>Somar dois vetores faz pouca conta por byte movido. O gargalo tende a ser memória ou transferência, e não a aritmética (Insper, <i>Por que a soma pode não acelerar</i>).</p></div>
+</div></div>
+<h3 style="margin-top:14px">Checagem do ambiente (Colab)</h3>
+${sh(`!nvidia-smi          # GPU, driver, memória
+!nvcc --version      # versão do toolkit
+# Colab: Runtime > Change runtime type > T4 GPU`)}`,
+`Mostre nvidia-smi: nome (Tesla T4), memória (~15 GB) e versão do driver. Lembre que 'CUDA Version' no nvidia-smi é a versão máxima suportada pelo driver, e não o toolkit instalado; o toolkit vem de nvcc --version.`,
+()=>{const s=document.getElementById('svgArch');let h='';
+ h+='<text x="10" y="18" fill="#9aa3b2" font-size="13">CPU: poucos núcleos fortes</text>';
+ for(let i=0;i<4;i++)h+=`<rect x="${12+i*48}" y="26" width="42" height="54" rx="4" fill="#4c9aff"/>`;
+ h+='<rect x="12" y="86" width="186" height="14" rx="3" fill="#2c313c"/><text x="16" y="97" fill="#9aa3b2" font-size="10">cache grande</text>';
+ h+='<text x="10" y="132" fill="#9aa3b2" font-size="13">GPU: muitos núcleos simples</text>';
+ for(let r=0;r<5;r++)for(let c=0;c<24;c++)h+=`<rect x="${12+c*16.3}" y="${142+r*14}" width="12" height="10" rx="2" fill="#76b900"/>`;
+ h+='<text x="10" y="224" fill="#9aa3b2" font-size="10">cada quadrado = unidade de execução (ilustrativo)</text>';
+ s.innerHTML=h;});
+
+slide('1 · Computação acelerada','Fluxo básico de um programa CUDA',`
+<div class="grid g2">
+<div class="card"><svg viewBox="0 0 440 250" width="100%" id="svgFlow"></svg></div>
+<div>
+${code(`// 1) Memória acessível à GPU
+float *a;
+cudaMallocManaged(&a, N * sizeof(float));
+
+// 2) Inicializar na CPU
+for (int i = 0; i < N; ++i) a[i] = i;
+
+// 3) Lançar kernel (assíncrono!)
+doubleElements<<<blocos, threads>>>(a, N);
+
+// 4) Esperar a GPU antes de ler na CPU
+cudaDeviceSynchronize();
+
+// 5) Liberar
+cudaFree(a);`)}
+<p class="src">Padrão usado nos notebooks 1 e 2; mesma estrutura em Harris (2025).</p>
+</div></div>`,
+`Enfatize o passo 3 como assíncrono: o controle volta para a CPU antes do kernel terminar. Sem o passo 4, a CPU pode ler dados incompletos.`,
+()=>{const s=document.getElementById('svgFlow');
+ const bx=[['Host (CPU)',20,20,'#4c9aff'],['Device (GPU)',250,20,'#76b900']];
+ let h='';bx.forEach(b=>h+=`<rect x="${b[1]}" y="${b[2]}" width="170" height="210" rx="8" fill="none" stroke="${b[3]}" stroke-width="2"/><text x="${b[1]+10}" y="${b[2]+20}" fill="${b[3]}" font-size="13">${b[0]}</text>`);
+ const st=[['alocar',58],['inicializar',98],['lançar kernel',138],['sincronizar',178]];
+ st.forEach(([t,y])=>h+=`<rect x="34" y="${y}" width="140" height="28" rx="5" fill="#20242d" stroke="#2c313c"/><text x="44" y="${y+19}" fill="#e8eaf0" font-size="12">${t}</text>`);
+ h+='<rect x="264" y="138" width="140" height="28" rx="5" fill="#20242d" stroke="#76b900"/><text x="274" y="157" fill="#e8eaf0" font-size="12">kernel executa</text>';
+ h+='<path d="M174 152 H264" stroke="#ffb84d" stroke-width="2" marker-end="url(#ar)"/><defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#ffb84d"/></marker></defs>';
+ h+='<text x="180" y="140" fill="#ffb84d" font-size="10">retorna já</text>';
+ s.innerHTML=h;});
+
+/* ================== 2. KERNEL ================== */
+slide('2 · Kernel','Kernel, host e device',`
+<div class="grid g2">
+<div>
+${code(`// Roda na GPU, chamada pela CPU
+__global__ void helloGPU()
+{
+  printf("Olá da GPU\\n");
+}
+
+void helloCPU()   // função normal
+{
+  printf("Olá da CPU\\n");
+}
+
+int main()
+{
+  helloCPU();
+  helloGPU<<<1, 1>>>();   // 1 bloco, 1 thread
+  cudaDeviceSynchronize();
+}`)}
+${sh(`nvcc -arch=sm_75 -o hello-gpu hello-gpu.cu -run`)}
+</div>
+<div>
+<div class="card"><h3>Qualificadores</h3>
+<table><tr><th>Qualificador</th><th>Roda em</th><th>Chamado de</th></tr>
+<tr><td><code>__global__</code></td><td>device</td><td>host</td></tr>
+<tr><td><code>__device__</code></td><td>device</td><td>device</td></tr>
+<tr><td><code>__host__</code></td><td>host</td><td>host</td></tr></table></div>
+<div class="card" style="margin-top:12px"><h3>Regras do kernel</h3><ul><li>Retorna <code>void</code></li><li>O lançamento é <b>assíncrono</b></li><li><code>.cu</code> é compilado pelo <code>nvcc</code></li></ul></div>
+<div class="card err" style="margin-top:12px"><b>Erro comum (notebook 1, vector-add):</b> usar <code>&lt;&lt;&lt;…&gt;&gt;&gt;</code> numa função sem <code>__global__</code> gera “a host function call cannot be configured”.</div>
+</div></div>`,
+`Peça aos alunos para prever a saída de helloGPU<<<1,1>>> sem cudaDeviceSynchronize: o printf do device pode nunca aparecer, porque o programa termina antes do buffer ser descarregado. Fonte: Programming Guide 2.1; Insper.`);
+
+slide('2 · Kernel','Configuração de execução <<<blocos, threads>>>',`
+<div class="grid g2">
+<div>
+<div class="formula">kernel&lt;&lt;&lt; <b>numBlocks</b>, <b>threadsPerBlock</b> &gt;&gt;&gt;(args)</div>
+<div class="formula">threads totais = numBlocks × threadsPerBlock</div>
+<ul><li><b>1º argumento:</b> blocos no grid</li><li><b>2º argumento:</b> threads por bloco (máx. 1024)</li><li>Há um 3º (memória compartilhada dinâmica) e um 4º (stream), vistos adiante</li></ul>
+<div class="ctl"><label>blocos <input type="number" id="cfgB" value="2" min="1" max="64"></label><label>threads/bloco <input type="number" id="cfgT" value="4" min="1" max="2048"></label><button class="btn" id="cfgGo">Visualizar</button></div>
+<div class="out" id="cfgOut"></div>
+</div>
+<div class="card"><div id="cfgViz"></div></div>
+</div>
+<div class="card err" style="margin-top:12px"><b>Notebook 1, 06-errors:</b> <code>threads_per_block = 2048</code> excede 1024 e o lançamento falha com <code>invalid argument</code>. O kernel não chega a executar.</div>`,
+`Use o widget: tente 2 e 2048 para disparar o aviso. O erro só aparece em cudaGetLastError, não é uma exceção.`,
+()=>{const run=()=>{const B=+cfgB.value,T=+cfgT.value;let ok=T<=1024&&T>=1&&B>=1;
+ cfgOut.textContent=ok?`threads totais = ${B} × ${T} = ${B*T}\nwarps por bloco = ceil(${T}/32) = ${Math.ceil(T/32)}${T%32?'\naviso: T não é múltiplo de 32; o último warp fica incompleto':''}`:`INVÁLIDO: ${T>1024?'máximo de 1024 threads por bloco':'valores devem ser >= 1'}\ncudaGetLastError() -> invalid configuration argument`;
+ let h='';if(ok)for(let b=0;b<Math.min(B,8);b++){h+=`<div style="margin:4px 0"><small class="src">bloco ${b}</small><div class="cells">`;for(let t=0;t<Math.min(T,32);t++)h+=`<div class="cell a">${t}</div>`;if(T>32)h+=`<div class="cell">…</div>`;h+='</div></div>'}
+ cfgViz.innerHTML=h||'<p class="src">configuração inválida</p>'};
+ cfgGo.onclick=run;run();});
+
+/* ================== 3. THREAD HIERARCHY ================== */
+slide('3 · Hierarquia de threads','Grid → bloco → thread',`
+<div class="grid g2">
+<div class="card"><svg viewBox="0 0 440 240" width="100%" id="svgHier"></svg></div>
+<div>
+<table><tr><th>Variável</th><th>Significado</th></tr>
+<tr><td><code>threadIdx.x</code></td><td>posição da thread no bloco</td></tr>
+<tr><td><code>blockIdx.x</code></td><td>posição do bloco no grid</td></tr>
+<tr><td><code>blockDim.x</code></td><td>threads por bloco</td></tr>
+<tr><td><code>gridDim.x</code></td><td>blocos no grid</td></tr></table>
+<div class="formula">i = blockIdx.x × blockDim.x + threadIdx.x</div>
+${code(`__global__ void initializeElementsTo(int v, int *a, int N)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < N)          // guarda: o grid costuma ser maior que N
+    a[i] = v;
+}`)}
+<p class="src">Mesma fórmula em Harris (2025) e em Insper. Blocos de uma grade 1D: <code>.y</code> e <code>.z</code> valem 0.</p>
+</div></div>`,
+`A guarda if (i<N) é o primeiro bug que os alunos encontram. Ligue ao slide seguinte, em que calculamos o número de blocos arredondando para cima.`,
+()=>{const s=document.getElementById('svgHier');let h='<rect x="6" y="6" width="428" height="228" rx="8" fill="none" stroke="#4c9aff" stroke-width="2"/><text x="14" y="24" fill="#4c9aff" font-size="12">Grid (gridDim.x = 3)</text>';
+ for(let b=0;b<3;b++){const x=18+b*138;h+=`<rect x="${x}" y="38" width="128" height="180" rx="6" fill="#181b22" stroke="#76b900" stroke-width="1.5"/><text x="${x+8}" y="56" fill="#76b900" font-size="11">bloco ${b} (blockIdx.x=${b})</text>`;
+ for(let t=0;t<4;t++)for(let r=0;r<4;r++){const g=b*16+r*4+t;h+=`<rect x="${x+8+t*29}" y="${66+r*36}" width="25" height="30" rx="3" fill="#20242d" stroke="#2c313c"/><text x="${x+10+t*29}" y="${86+r*36}" fill="#e8eaf0" font-size="9">t${t}</text>`}}
+ s.innerHTML=h;});
+
+slide('3 · Hierarquia de threads','Calculadora de índice global',`
+<div class="grid g2">
+<div>
+<div class="ctl"><label>blockIdx.x <input type="number" id="ciB" value="2" min="0"></label><label>blockDim.x <input type="number" id="ciD" value="256" min="1"></label><label>threadIdx.x <input type="number" id="ciT" value="5" min="0"></label></div>
+<div class="formula" id="ciF"></div>
+<h3>Quantos blocos preciso? (divisão com teto)</h3>
+<div class="ctl"><label>N <input type="number" id="ciN" value="1000" min="1"></label></div>
+<div class="formula">numBlocks = (N + blockSize − 1) / blockSize</div>
+<div class="out" id="ciO"></div>
+</div>
+<div>
+${code(`int N = 1000;
+int threadsPerBlock = 256;
+int numberOfBlocks =
+    (N + threadsPerBlock - 1) / threadsPerBlock;
+
+kernel<<<numberOfBlocks, threadsPerBlock>>>(a, N);`)}
+<div class="card ok"><b>Exemplo (llmdeepdive):</b> com 256 threads por bloco, a thread 5 do bloco 2 recebe i = 2×256+5 = 517.</div>
+<div class="card warn" style="margin-top:10px">Sem a guarda <code>if (i &lt; N)</code>, as threads extras escrevem fora do array. Isto é comportamento indefinido, mesmo que “pareça funcionar”.</div>
+</div></div>`,
+`Peça para o aluno tentar N=1000 com 256 threads: 4 blocos, 1024 threads, 24 sobram. Em seguida, mude para N=1024: 4 blocos exatos.`,
+()=>{const f=()=>{const b=+ciB.value,d=+ciD.value,t=+ciT.value,n=+ciN.value;
+ ciF.textContent=`i = ${b} × ${d} + ${t} = ${b*d+t}`;
+ const nb=Math.ceil(n/d),tot=nb*d;ciO.textContent=`blocos = ceil(${n}/${d}) = ${nb}\nthreads totais = ${tot}\nthreads ociosas = ${tot-n}`};
+ [ciB,ciD,ciT,ciN].forEach(e=>e.oninput=f);f();});
+
+slide('3 · Hierarquia de threads','Grid-stride loop',`
+<p class="lead">Quando N é maior que o número de threads, cada thread processa vários elementos, avançando um passo igual ao total de threads do grid.</p>
+<div class="grid g2">
+<div>
+${code(`__global__ void doubleElements(int *a, int N)
+{
+  int idx    = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = gridDim.x  * blockDim.x;   // total de threads
+
+  for (int i = idx; i < N; i += stride)
+    a[i] *= 2;
+}`)}
+<div class="formula">stride = gridDim.x × blockDim.x</div>
+<div class="ctl"><label>N <input type="number" id="gsN" value="20" min="1" max="64"></label><label>blocos <input type="number" id="gsB" value="2" min="1" max="8"></label><label>thr/bloco <input type="number" id="gsT" value="3" min="1" max="8"></label></div>
+<div class="out" id="gsO"></div>
+</div>
+<div class="card"><h3>Quem processa cada elemento</h3><div class="cells" id="gsV"></div><div id="gsLeg" class="src"></div></div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+<div class="card err"><b>Notebook 1, 05-allocate/03:</b> o laço <code>i &lt; N-1</code> deixa o último elemento sem processar (off-by-one) e o resultado sai <code>FALSE</code>.</div>
+<div class="card err"><b>Notebook 1, 06-errors/01:</b> <code>i &lt; N + stride</code> acessa além do array.</div>
+</div>`,
+`Mostre que a posição (N-1) é pulada com a condição errada. Mude blocos/threads para ver que o resultado não depende da configuração: a correção independe do tamanho do grid.`,
+()=>{const f=()=>{const N=+gsN.value,B=+gsB.value,T=+gsT.value,stride=B*T;const own=Array(N).fill(-1);
+ for(let id=0;id<stride;id++)for(let i=id;i<N;i+=stride)own[i]=id;
+ gsV.innerHTML=own.map((o,i)=>`<div class="cell ${o%2?'b':'a'}" title="elemento ${i}">${o}</div>`).join('');
+ gsO.textContent=`stride = ${B} × ${T} = ${stride}\nelementos por thread (máx.) = ${Math.ceil(N/stride)}\nnúmero indica a thread global que processa o elemento`;
+ gsLeg.textContent='Cores alternam por thread global para facilitar a leitura.'};
+ [gsN,gsB,gsT].forEach(e=>e.oninput=f);f();});
+
+slide('3 · Hierarquia de threads','SMs, warps e tamanho do bloco',`
+<div class="grid g2">
+<div>
+<ul><li>A GPU é formada por <b>Streaming Multiprocessors (SM)</b>. Um bloco executa em um único SM.</li>
+<li>As threads de um bloco são agrupadas em <b>warps de 32</b> (modelo SIMT).</li>
+<li>Prefira tamanho de bloco <b>múltiplo de 32</b> (128, 256, 512).</li>
+<li>Divergência de ramos dentro do warp serializa a execução.</li></ul>
+<div class="formula">warps por bloco = ceil(threadsPerBlock / 32)</div>
+<div class="ctl"><label>threads/bloco <input type="number" id="wpT" value="100" min="1" max="1024"></label></div>
+<div class="out" id="wpO"></div>
+</div>
+<div>
+<div class="card"><h3>Consultar propriedades (como nos notebooks)</h3>
+${code(`int deviceId;
+cudaGetDevice(&deviceId);
+
+cudaDeviceProp props;
+cudaGetDeviceProperties(&props, deviceId);
+
+int sms = props.multiProcessorCount;
+// Tesla T4: 40 SMs, compute capability 7.5`)}</div>
+<div class="card warn" style="margin-top:12px">Harris (2025) cita para a T4: 40 SMs, 2560 CUDA cores, até 1024 threads ativas por SM e pico de 320 GB/s. Confirme com <code>props</code> no seu ambiente.</div>
+</div></div>
+<p class="src">No notebook 2, o número de blocos é escolhido como múltiplo do número de SMs.</p>`,
+`Peça para calcular: bloco de 100 threads gera 4 warps, sendo o último com 4 threads ativas e 28 ociosas. Sirva-se do widget.`,
+()=>{const f=()=>{const t=+wpT.value,w=Math.ceil(t/32),idle=w*32-t;wpO.textContent=`warps = ceil(${t}/32) = ${w}\nthreads ociosas no último warp = ${idle}\neficiência de slots = ${(100*t/(w*32)).toFixed(1)}%`};wpT.oninput=f;f();});
+
+/* ================== 4. NVCC ================== */
+slide('4 · Compilação','nvcc: compilar, executar, depurar',`
+<div class="grid g2">
+<div>
+${sh(`# compilar para a T4 (compute capability 7.5)
+nvcc -arch=sm_75 -o soma soma.cu
+
+# compilar e executar
+nvcc -arch=sm_75 -o soma soma.cu -run`)}
+<table><tr><th>Opção</th><th>Efeito</th></tr>
+<tr><td><code>-o nome</code></td><td>nome do executável</td></tr>
+<tr><td><code>-arch=sm_75</code></td><td>gera código para compute capability 7.5</td></tr>
+<tr><td><code>-run</code></td><td>executa após compilar</td></tr></table>
+</div>
+<div>
+<div class="card warn"><h3>Atenção ao notebook 1</h3><p>Quase todas as células usam <code>-arch=sm_75</code>, correto para a T4. A célula do <code>09-heat</code> usa <code>-arch=sm_70</code> (Volta). Pode compilar e rodar por compatibilidade via PTX, mas não corresponde à T4. Alinhe para <code>sm_75</code>.</p></div>
+<div class="card" style="margin-top:12px"><h3>PTX x código de máquina</h3><p>O binário pode levar código de máquina (SASS) para uma capability e PTX, que o driver compila na hora (JIT). Veja llmdeepdive, <i>Compilar para a GPU certa</i>.</p></div>
+</div></div>`,
+`Verifique antes da aula o alvo -arch na célula 09-heat. Não afirmei o comportamento do nvcc sem -arch; consulte o manual do nvcc se um aluno perguntar. Programming Guide 2.7.`);
+
+/* ================== 5. ERROS ================== */
+slide('5 · Erros','Tratamento de erros em CUDA',`
+<div class="grid g2">
+<div>
+${code(`inline cudaError_t checkCuda(cudaError_t result)
+{
+  if (result != cudaSuccess) {
+    fprintf(stderr, "CUDA Runtime Error: %s\\n",
+            cudaGetErrorString(result));
+  }
+  return result;
+}
+
+// uso
+checkCuda( cudaMallocManaged(&a, size) );
+
+kernel<<<blocos, threads>>>(a, N);
+checkCuda( cudaGetLastError() );        // erro de lançamento
+checkCuda( cudaDeviceSynchronize() );   // erro durante a execução`)}
+</div>
+<div>
+<div class="card"><h3>Dois tipos de erro</h3><ul><li><b>Lançamento síncrono:</b> configuração inválida (ex.: 2048 threads). Detectado por <code>cudaGetLastError()</code>.</li><li><b>Execução assíncrona:</b> falha dentro do kernel. Só aparece na próxima sincronização.</li></ul></div>
+<div class="card warn" style="margin-top:12px">Um kernel não retorna valor. Sem verificar, o programa continua e produz resultado errado em silêncio.</div>
+<div class="card ok" style="margin-top:12px">Ferramenta extra: <code>compute-sanitizer ./programa</code> (citada na aula 12.3 do llmdeepdive) ajuda a achar acessos fora do limite.</div>
+</div></div>`,
+`Retome o 06-errors: com 2048 threads por bloco, o kernel nem inicia e cudaGetLastError devolve invalid argument. Pergunte o que aconteceria se não chamássemos checkCuda. O compute-sanitizer não foi executado nesta pesquisa; teste antes de recomendar.`);
+
+/* ================== 6. UNIFIED MEMORY ================== */
+slide('6 · Unified Memory','Um espaço de endereços para CPU e GPU',`
+<div class="grid g2">
+<div>
+${code(`// Antes: duas alocações e cópias explícitas
+float *h = (float*)malloc(size);
+float *d; cudaMalloc(&d, size);
+cudaMemcpy(d, h, size, cudaMemcpyHostToDevice);
+
+// Unified Memory: um ponteiro, os dois lados acessam
+float *a;
+cudaMallocManaged(&a, size);`)}
+<ul><li>Retorna um ponteiro válido na CPU e na GPU.</li><li>O sistema migra páginas sob demanda.</li><li>A migração custa tempo e aparece no perfil.</li></ul>
+</div>
+<div class="card"><h3>Pascal e posteriores</h3><p>Harris (2017): em GPUs Pascal ou mais novas, a memória gerenciada pode não estar fisicamente alocada quando <code>cudaMallocManaged</code> retorna. As páginas são criadas ao serem acessadas, e a GPU resolve page faults com o <i>Page Migration Engine</i>.</p>
+<p>A T4 (Turing, sm_75) é posterior à Pascal e suporta esse modelo.</p>
+<p class="src">Em GPUs pré-Pascal (Kepler/Maxwell), o runtime migra tudo antes de cada kernel.</p></div>
+</div>`,
+`A T4 (sm_75) é posterior à Pascal, então o raciocínio de page faults vale. Não afirme que a migração é sempre lenta: depende do padrão de acesso.`);
+
+slide('6 · Unified Memory','Page faults: simulação',`
+<p class="lead">Simulação didática de 32 páginas. <b>Não mede tempo.</b> Mostra apenas onde cada página está e quando ocorre falta de página.</p>
+<div class="ctl"><button class="btn" id="umInit">CPU inicializa</button><button class="btn" id="umKernel">Kernel acessa (sem prefetch)</button><button class="btn" id="umPref">Prefetch p/ GPU</button><button class="btn alt" id="umRes">Reiniciar</button></div>
+<div class="cells" id="umPages"></div>
+<div class="out" id="umLog"></div>
+<div class="grid g2" style="margin-top:12px">
+<div class="card"><span class="tag atu">legenda</span><span class="cell a" style="display:inline-block">C</span> página na CPU &nbsp; <span class="cell b" style="display:inline-block">G</span> página na GPU &nbsp; <span class="cell" style="display:inline-block">-</span> não alocada</div>
+<div class="card warn">Com prefetch, a migração acontece em lote, antes do kernel, e evita page faults individuais (Harris 2017 e 2025).</div>
+</div>`,
+`Ordem sugerida: 1) CPU inicializa (páginas ficam na CPU); 2) kernel sem prefetch (cada página acessada gera falta); 3) reinicie, inicialize, faça prefetch, rode o kernel e compare o log.`,
+()=>{let P,log;const R=()=>{P=Array(32).fill('-');log='';draw()};
+ const draw=()=>{umPages.innerHTML=P.map((p,i)=>`<div class="cell ${p=='C'?'a':p=='G'?'b':''}">${p}</div>`).join('');umLog.textContent=log||'estado inicial: nada alocado'};
+ umInit.onclick=()=>{P=P.map(()=>'C');log='CPU escreveu todas as páginas: 32 páginas residem na CPU';draw()};
+ umKernel.onclick=()=>{let f=P.filter(p=>p!='G').length;P=P.map(()=> 'G');log=`kernel acessa 32 páginas; ${f} page faults de GPU resolvidos um a um (a thread espera cada migração)`;draw()};
+ umPref.onclick=()=>{let m=P.filter(p=>p!='G').length;P=P.map(()=> 'G');log=`prefetch moveu ${m} páginas em lote antes do kernel; o kernel não gera page faults`;draw()};
+ umRes.onclick=R;R();});
+
+slide('6 · Unified Memory','Prefetch e dicas de localidade',`
+<div class="grid g2">
+<div>
+${code(`int deviceId;
+cudaGetDevice(&deviceId);
+size_t size = N * sizeof(float);
+
+// Enviar para a GPU antes do kernel
+cudaMemPrefetchAsync(a, size, deviceId, 0);
+cudaMemPrefetchAsync(b, size, deviceId, 0);
+cudaMemPrefetchAsync(c, size, deviceId, 0);
+
+addVectorsInto<<<blocos, threads>>>(c, a, b, N);
+
+// Trazer o resultado de volta para a CPU
+cudaMemPrefetchAsync(c, size, cudaCpuDeviceId, 0);
+cudaDeviceSynchronize();`)}
+</div>
+<div>
+<div class="card"><h3>Estratégias do notebook 2</h3><ol><li>Kernel com 1 thread (baseline)</li><li>Muitas threads/blocos</li><li>Blocos múltiplos do nº de SMs</li><li>Inicializar dentro de um kernel</li><li>Prefetch para a GPU</li><li>Prefetch de volta para a CPU</li></ol></div>
+<div class="card warn" style="margin-top:12px"><b>Assinatura da API:</b> o código dos notebooks usa <code>cudaMemPrefetchAsync(ptr, size, device, stream)</code>. Em toolkits mais novos a API mudou. Compare com a versão instalada no Colab (<code>nvcc --version</code>) e com o Runtime API antes de reaproveitar o código. No notebook 3, algumas chamadas omitem o stream.</div>
+</div></div>
+<p class="src">Harris (2017) indica ainda <code>cudaMemAdvise()</code> para dar dicas ao driver, que não é usado nos notebooks.</p>`,
+`Confirme no Colab qual toolkit está instalado e se as chamadas dos notebooks compilam sem warnings. Isto é verificação pendente: não executei os notebooks nesta etapa.`);
+
+/* ================== 7. NSYS ================== */
+slide('7 · Profiling','Nsight Systems na linha de comando',`
+<div class="grid g2">
+<div>
+${sh(`# perfil com estatísticas no terminal
+nsys profile --stats=true ./vector-add
+
+# nome do relatório e sobrescrever
+nsys profile --stats=true -o relatorio --force-overwrite true ./vector-add
+
+# reabrir as estatísticas depois
+nsys stats relatorio.nsys-rep`)}
+<p class="src">Opção <code>--stats</code> confirmada no Nsight Systems User Guide (v2026.6) e no tutorial MolSSI. O guia avisa que, com <code>--stats=true</code>, um banco SQLite é criado após a coleta.</p>
+</div>
+<div class="card"><h3>As quatro seções da saída</h3><ol><li><b>CUDA API</b>: tempo de <code>cudaMalloc</code>, <code>cudaMemcpy</code>, <code>cudaDeviceSynchronize</code>…</li><li><b>CUDA Kernel</b>: tempo de cada kernel</li><li><b>CUDA Memory Operations</b>: por tempo e por tamanho</li><li><b>OS Runtime</b>: chamadas do sistema</li></ol>
+<div class="card warn" style="margin-top:10px">A coluna <code>Time (%)</code> é a fração da soma dos itens listados, e não do tempo total do programa.</div></div>
+</div>`,
+`Mostre a saída de um dos notebooks e peça para localizar: qual API dominou o tempo? Cuidado: cudaMalloc/cudaMallocManaged costumam dominar por conta da inicialização do contexto, e isso não reflete o kernel.`);
+
+slide('7 · Profiling','Como ler os números: gráfico a partir de entradas',`
+<p class="lead">Cole os valores que você obteve nos notebooks (ns) e o gráfico mostra a distribuição. Os valores iniciais são <b>exemplo didático</b>, não resultado medido.</p>
+<div class="grid g2">
+<div>
+<div class="ctl"><label>kernel (ns) <input type="number" id="pfK" value="2000000"></label><label>H2D/UM (ns) <input type="number" id="pfH" value="800000"></label><label>D2H (ns) <input type="number" id="pfD" value="350000"></label></div>
+<div class="out" id="pfO"></div>
+<div class="formula">fração_i = tempo_i / (kernel + H2D + D2H)</div>
+</div>
+<div class="card"><canvas id="pfC" width="560" height="230" style="width:100%"></canvas></div>
+</div>
+<div class="card warn" style="margin-top:12px">Soma de operações de GPU não é o tempo de parede: operações podem se sobrepor e há tempo de CPU. Use este gráfico só para entender proporções.</div>`,
+`Peça que os alunos copiem os valores reais da saída do nsys do notebook 2 e comparem as versões: 1 thread, multi-thread, init em kernel, prefetch.`,
+()=>{const f=()=>{const v=[+pfK.value,+pfH.value,+pfD.value],n=['kernel','H2D/UM','D2H'],c=['#76b900','#4c9aff','#ffb84d'],T=v.reduce((a,b)=>a+b,0)||1;
+ pfO.textContent=n.map((x,i)=>`${x}: ${(100*v[i]/T).toFixed(1)}%`).join('\n');
+ const cv=pfC.getContext('2d');cv.clearRect(0,0,560,230);cv.font='13px sans-serif';
+ const mx=Math.max(...v,1);v.forEach((x,i)=>{const w=x/mx*330;cv.fillStyle=c[i];cv.fillRect(90,24+i*62,w,34);cv.fillStyle='#9aa3b2';cv.fillText(n[i],10,46+i*62);cv.fillText((x/1e6).toFixed(3)+' ms',96+w,46+i*62)})};
+ [pfK,pfH,pfD].forEach(e=>e.oninput=f);f();});
+
+/* ================== 8. STREAMS ================== */
+slide('8 · Streams','Stream padrão e streams não padrão',`
+<div class="grid g2">
+<div>
+<ul><li>Um <b>stream</b> é uma sequência de operações executadas na ordem em que foram emitidas.</li>
+<li>Operações em streams diferentes podem se intercalar ou rodar em paralelo.</li>
+<li>O <b>stream padrão</b> (legacy) sincroniza com os demais: nada nele começa antes de todos terminarem, e nada em outro stream começa antes dele terminar (Harris 2012).</li></ul>
+${code(`cudaStream_t s1;
+cudaStreamCreate(&s1);
+
+// 4º argumento da configuração = stream
+kernel<<<blocos, threads, 0, s1>>>(a, N);
+
+cudaStreamSynchronize(s1);
+cudaStreamDestroy(s1);`)}
+</div>
+<div>
+<div class="card"><h3>Argumentos de <code>&lt;&lt;&lt;…&gt;&gt;&gt;</code></h3><div class="formula">&lt;&lt;&lt; blocos, threads, memóriaDinâmica, stream &gt;&gt;&gt;</div><p>Use <code>0</code> no terceiro quando não houver memória compartilhada dinâmica.</p></div>
+<div class="card warn" style="margin-top:12px"><b>Histórico x vigente:</b> o CUDA 7 (2015) introduziu o stream padrão por thread (<code>--default-stream per-thread</code>). Mesmo assim, o post de Harris recomenda usar streams não padrão em bibliotecas.</div>
+<div class="card err" style="margin-top:12px"><b>Sintaxe a evitar:</b> o 4º argumento é o stream; colocar o stream na 3ª posição (memória dinâmica) é erro comum.</div>
+</div></div>`,
+`Pergunte: se dois kernels são lançados no stream padrão, rodam ao mesmo tempo? Não. Para sobreposição, é preciso streams não padrão e recursos de hardware.`);
+
+slide('8 · Streams','Timeline ilustrativa: sem streams x com streams',`
+<p class="lead">Modelo ilustrativo de uma cópia H2D, um kernel e uma cópia D2H por pedaço. <b>Os tempos são unidades abstratas</b>, não medidas. A figura só mostra a lógica de sobreposição.</p>
+<div class="ctl"><label>pedaços <input type="number" id="stN" value="4" min="1" max="8"></label><label>H2D <input type="number" id="stH" value="2" min="1" max="6"></label><label>kernel <input type="number" id="stK" value="2" min="1" max="6"></label><label>D2H <input type="number" id="stD" value="2" min="1" max="6"></label></div>
+<div class="card"><canvas id="stC" width="1000" height="330" style="width:100%"></canvas></div>
+<div class="out" id="stO"></div>
+<p class="src">Pressupõe cópia H2D e D2H em engines separados e memória pinned. Em GPUs com um único copy engine, a ordem de lançamento muda o resultado (Harris 2012).</p>`,
+`Mude o número de pedaços e mostre que o ganho tende a (H2D+K+D2H)/max(...) quando há muitos pedaços. Reforce que isto é um modelo: a medição real é com nsys.`,
+()=>{const f=()=>{const n=+stN.value,h=+stH.value,k=+stK.value,d=+stD.value;
+ // sequencial
+ const seq=n*(h+k+d);
+ // streams: H2D engine, kernel engine, D2H engine, ordem em fila
+ let eh=0,ek=0,ed=0,ev=[];for(let i=0;i<n;i++){const hs=eh,he=hs+h;eh=he;const ks=Math.max(he,ek),ke=ks+k;ek=ke;const ds=Math.max(ke,ed),de=ds+d;ed=de;ev.push([hs,he,ks,ke,ds,de])}
+ const par=ed;const cv=stC.getContext('2d');cv.clearRect(0,0,1000,330);cv.font='13px sans-serif';
+ const sc=900/Math.max(seq,par),col=['#4c9aff','#76b900','#ffb84d'],nm=['H2D','kernel','D2H'];
+ cv.fillStyle='#9aa3b2';cv.fillText('Sequencial (stream padrão)',10,18);
+ let t=0;for(let i=0;i<n;i++)[h,k,d].forEach((x,j)=>{cv.fillStyle=col[j];cv.fillRect(60+t*sc,24,x*sc-1,30);t+=x});
+ cv.fillStyle='#9aa3b2';cv.fillText('Com streams',10,90);
+ ['H2D','kernel','D2H'].forEach((x,j)=>{cv.fillStyle='#9aa3b2';cv.fillText(x,10,118+j*40)});
+ ev.forEach((e,i)=>{[[e[0],e[1],0],[e[2],e[3],1],[e[4],e[5],2]].forEach(([a,b,j])=>{cv.fillStyle=col[j];cv.fillRect(60+a*sc,100+j*40,(b-a)*sc-1,30);cv.fillStyle='#0b0d11';cv.fillText(i,64+a*sc,120+j*40)})});
+ stO.textContent=`sequencial = ${seq} u.\ncom streams = ${par} u.\nrazão sequencial/streams = ${(seq/par).toFixed(2)}  (modelo; sem custos de lançamento)`};
+ [stN,stH,stK,stD].forEach(e=>e.oninput=f);f();});
+
+slide('8 · Streams','Pinned memory e cudaMemcpyAsync',`
+<div class="grid g2">
+<div>
+${code(`float *h_a, *d_a;
+cudaMallocHost(&h_a, size);      // pinned (page-locked)
+cudaMalloc(&d_a, size);
+
+cudaStream_t s[NSTREAMS];
+for (int i = 0; i < NSTREAMS; ++i) cudaStreamCreate(&s[i]);
+
+for (int i = 0; i < NSTREAMS; ++i) {
+  int off = i * chunk;
+  cudaMemcpyAsync(&d_a[off], &h_a[off], chunkBytes,
+                  cudaMemcpyHostToDevice, s[i]);
+  kernel<<<blocos, threads, 0, s[i]>>>(&d_a[off], chunk);
+  cudaMemcpyAsync(&h_a[off], &d_a[off], chunkBytes,
+                  cudaMemcpyDeviceToHost, s[i]);
+}
+cudaDeviceSynchronize();
+cudaFreeHost(h_a);`)}
+<p class="src">Estrutura baseada em Harris (2012), escrita a partir da assinatura do Runtime API. O trecho “V2” do post tem um argumento duplicado e não foi copiado.</p>
+</div>
+<div>
+<div class="card"><h3>Três requisitos para sobrepor cópia e kernel</h3><ol><li>Dispositivo com “concurrent copy and execution” (<code>cudaDeviceProp</code>)</li><li>Cópia e kernel em <b>streams diferentes, não padrão</b></li><li>Memória do host <b>pinned</b></li></ol></div>
+<div class="card warn" style="margin-top:12px">Cuidado: <code>cudaMemcpyAsync</code> com memória pageable (<code>malloc</code>) pode perder a assincronia. O quinto argumento é o stream.</div>
+<div class="card" style="margin-top:12px"><b>Sincronização mais fina:</b> <code>cudaStreamSynchronize(s)</code> espera um stream; <code>cudaDeviceSynchronize()</code> espera o dispositivo todo e, segundo Harris, pode prejudicar o desempenho quando usada sem necessidade.</div>
+</div></div>`,
+`No notebook 3, o foco é perfil visual: abra o relatório no Nsight Systems e identifique a linha de CUDA HW com Memory e Kernels. Pergunte se há sobreposição ou não.`);
+
+/* ================== 9. PERFIL VISUAL ================== */
+slide('9 · Perfil visual','Nsight Systems GUI: o que procurar',`
+<div class="grid g2">
+<div class="card"><h3>Fluxo</h3><ol><li>Gerar <code>.nsys-rep</code> no Colab com <code>nsys profile -o relatorio ...</code></li><li>Baixar o arquivo</li><li>Abrir no Nsight Systems local (<code>File &gt; Open</code>)</li><li>Zoom na linha do tempo; <i>Show in Events View</i> para ver a tabela</li></ol>
+<p class="src">Procedimento de importação descrito no tutorial MolSSI (2021). A interface mudou em versões recentes; confirme com a versão instalada.</p></div>
+<div class="card"><h3>Perguntas de leitura da timeline</h3><ul><li>Há lacunas entre kernels? (GPU ociosa)</li><li>As cópias H2D/D2H bloqueiam o kernel?</li><li>Há page faults de Unified Memory antes do kernel?</li><li>Os streams se sobrepõem?</li></ul>
+<div class="card warn" style="margin-top:10px">Para ver page faults de UM, o guia lista <code>--cuda-um-gpu-page-faults</code> e <code>--cuda-um-cpu-page-faults</code> com aviso de sobrecarga significativa.</div></div>
+</div>
+<div class="card" style="margin-top:12px"><h3>Esquema de timeline (ilustrativo)</h3><svg viewBox="0 0 900 140" width="100%" id="svgTl"></svg></div>`,
+`Se possível, projete o relatório real. O esquema abaixo é só um mapa mental: Threads (CPU) em cima, CUDA HW (Memory, Kernels) embaixo.`,
+()=>{const s=document.getElementById('svgTl');let h='';
+ const rows=[['CPU / API',[[20,60,'#4c9aff'],[90,40,'#4c9aff'],[420,120,'#ffb84d']]],['Memory',[[130,160,'#4c9aff'],[560,120,'#ffb84d']]],['Kernels',[[300,110,'#76b900']]]];
+ rows.forEach(([n,bs],r)=>{h+=`<text x="4" y="${34+r*40}" fill="#9aa3b2" font-size="12">${n}</text><rect x="90" y="${14+r*40}" width="800" height="30" fill="#181b22" stroke="#2c313c"/>`;bs.forEach(([x,w,c])=>h+=`<rect x="${90+x}" y="${16+r*40}" width="${w}" height="26" fill="${c}" opacity=".85"/>`)});
+ h+='<text x="90" y="136" fill="#9aa3b2" font-size="11">azul = cópia/API · verde = kernel · âmbar = sincronização/espera (apenas ilustração)</text>';s.innerHTML=h;});
+
+/* ================== 10. SÍNTESE ================== */
+slide('10 · Síntese','Checklist e erros comuns',`
+<div class="grid g2">
+<div class="card ok"><h3>Antes de dizer “ficou mais rápido”</h3><ul><li>O resultado está correto (validação na CPU)?</li><li>Houve aquecimento (warm-up)?</li><li>Sincronizou antes de medir?</li><li>Separou transferência, kernel e ponta a ponta?</li><li>Registrou GPU, N, dtype e método?</li><li>Repetiu a medição?</li></ul></div>
+<div class="card err"><h3>Erros vistos nos notebooks</h3><ul><li><code>&lt;&lt;&lt;blockSize, gridSize&gt;&gt;&gt;</code> com nomes trocados (03-indices)</li><li><code>i &lt; N-1</code> e <code>i &lt; N + stride</code></li><li>2048 threads/bloco</li><li><code>-arch=sm_70</code> na T4</li><li>Falta de <code>__global__</code> em função lançada</li><li>Ler na CPU sem <code>cudaDeviceSynchronize()</code></li></ul></div>
+</div>
+<table style="margin-top:12px"><tr><th>Conceito</th><th>Classificação</th></tr>
+<tr><td>Kernel, grid, bloco, thread, warp</td><td><span class="tag vig">vigente</span></td></tr>
+<tr><td><code>nvprof</code>, <code>nvvp</code></td><td><span class="tag obs">obsoleto</span> (substituído por nsys/ncu)</td></tr>
+<tr><td>Unified Memory com page faults (Pascal+)</td><td><span class="tag vig">vigente</span></td></tr>
+<tr><td>Stream padrão por thread (CUDA 7)</td><td><span class="tag atu">atualização</span></td></tr>
+<tr><td>Resultados de C1060/C2050/K20c</td><td><span class="tag hist">histórico</span></td></tr></table>`,
+`Fechamento: peça que cada aluno diga qual erro do notebook foi mais fácil de cometer e como confirmar a correção. A classificação usa a divisão do README: histórico, vigente, obsoleto, atualização.`);
+
+slide('Referências','Fontes consultadas e limites',`
+<ul>
+<li>NVIDIA. <a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html" target="_blank">CUDA C++ Programming Guide</a> (índice lido, página indicava v13.5). Seções detalhadas não lidas.</li>
+<li>NVIDIA. <a href="https://docs.nvidia.com/nsight-systems/UserGuide/index.html" target="_blank">Nsight Systems User Guide</a> (v2026.6).</li>
+<li>M. Harris. <a href="https://developer.nvidia.com/blog/even-easier-introduction-cuda/" target="_blank">An Even Easier Introduction to CUDA (Updated)</a>, 2025.</li>
+<li>M. Harris. <a href="https://developer.nvidia.com/blog/unified-memory-cuda-beginners/" target="_blank">Unified Memory for CUDA Beginners</a>, 2017 (usa nvprof e GPUs K80/P100).</li>
+<li>M. Harris. <a href="https://developer.nvidia.com/blog/how-overlap-data-transfers-cuda-cc/" target="_blank">How to Overlap Data Transfers in CUDA C/C++</a>, 2012 (GPUs C1060/C2050/K20c).</li>
+<li>Insper. <a href="https://insper.github.io/supercomp/aulas/aula14/index_gpu/" target="_blank">Introdução a GPU</a>, SuperComputação 2026/2 (PT).</li>
+<li>llmdeepdive. <a href="https://llmdeepdive.com/pt-br/lessons/12-dgx-and-cuda/12.3-the-cuda-programming-model/" target="_blank">O modelo de programação CUDA</a> (PT; contém exemplos de DGX Spark).</li>
+<li>MolSSI. <a href="https://education.molssi.org/gpu_programming_intermediate/01-profiling/index.html" target="_blank">NVIDIA Nsight Profilers</a> (Pre-Alpha; Nsight 2021.3).</li>
+</ul>
+<div class="card warn"><b>Lacunas:</b> sem fonte em português aberta e verificada para unified memory, nsys, streams, tratamento de erros e <code>cudaDeviceProp</code>. Os gráficos de timeline, page faults e perfil são didáticos e não contêm medições.</div>
+<p class="src">Detalhes em <code>classes/apoio/hub_cuda_aula.md</code>.</p>`,
+`Antes de usar em sala, execute os trechos no Colab T4 e confirme as pendências marcadas em amarelo.`);
+
+/* ================== MOTOR ================== */
+const deck=document.getElementById('deck'),toc=document.getElementById('toc'),notes=document.getElementById('notes');
+let cur=0;
+S.forEach((s,i)=>{const d=document.createElement('section');d.className='slide';d.innerHTML=`<div class="sec">${s.sec}</div><h2>${s.title}</h2>${s.html}`;deck.appendChild(d);s.el=d;s.done=false});
+toc.innerHTML=S.map((s,i)=>`<a data-i="${i}"><small>${String(i+1).padStart(2,'0')} · ${s.sec}</small><br>${s.title}</a>`).join('');
+toc.onclick=e=>{const a=e.target.closest('a');if(a){go(+a.dataset.i);toc.classList.remove('on')}};
+function go(i){cur=Math.max(0,Math.min(S.length-1,i));S.forEach((s,k)=>s.el.classList.toggle('on',k===cur));const s=S[cur];
+ if(!s.done&&s.init){s.init();s.done=true}
+ document.getElementById('pos').textContent=`${cur+1} / ${S.length}`;document.getElementById('bar').style.width=((cur+1)/S.length*100)+'%';
+ notes.innerHTML=`<h4>Notas do professor</h4><div>${s.notes||'—'}</div>`;location.hash='#'+(cur+1);}
+document.getElementById('prev').onclick=()=>go(cur-1);document.getElementById('next').onclick=()=>go(cur+1);
+document.getElementById('bToc').onclick=()=>toc.classList.toggle('on');
+document.getElementById('bNotes').onclick=()=>notes.classList.toggle('on');
+document.getElementById('bTheme').onclick=()=>document.body.classList.toggle('light');
+document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
+ const k=e.key;if(k==='ArrowRight'||k==='PageDown'||k===' ')go(cur+1);else if(k==='ArrowLeft'||k==='PageUp')go(cur-1);
+ else if(k==='Home')go(0);else if(k==='End')go(S.length-1);else if(k==='t'||k==='T')toc.classList.toggle('on');
+ else if(k==='n'||k==='N')notes.classList.toggle('on');else if(k==='l'||k==='L')document.body.classList.toggle('light');
+ else if(k==='f'||k==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+ else if(k==='p'||k==='P')window.print();});
+go((parseInt(location.hash.slice(1))||1)-1);
+</script>
+</body>
+</html>
